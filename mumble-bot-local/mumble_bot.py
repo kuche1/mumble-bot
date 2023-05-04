@@ -2,11 +2,11 @@
 
 # go to mumble and go trough the cert setup, then convert it
 # openssl pkcs12 -in cert.p12 -out cert.crt -nodes
-# ./mumble_bot.py --server 212.5.153.130 --name niggerbot2  --certfile cert/cert.crt EPIC\ FLUTE\ DROP\ ft.\ KFC\ AND\ WATERMELONS\ \[dbe1e6624979e0053c6b4c273c3fdb374f84c7d6\].mp4
+# ./mumble_bot.py --server 212.5.153.130 --name sexbot --certfile cert/cert.crt EPIC\ FLUTE\ DROP\ ft.\ KFC\ AND\ WATERMELONS\ \[dbe1e6624979e0053c6b4c273c3fdb374f84c7d6\].mp4
 
 # put the music in the folder called `music`
 
-import pymumble_py3
+import pymumble_py3 # pip3 install pymumble
 import subprocess as sp
 import audioop, time
 import argparse
@@ -16,17 +16,17 @@ import os
 HERE = os.path.realpath(os.path.dirname(__file__))
 FOLDER_MUSIC = os.path.join(HERE, 'music')
 
-parser = argparse.ArgumentParser(description='get parameters.')
+parser = argparse.ArgumentParser(description='mumble bot')
 
 parser.add_argument('--server', '-s', required=True)
 parser.add_argument('--port', '-P', type=int, default=64738)
 parser.add_argument('--name', '-n', required=True)
 parser.add_argument('--passwd', '-p', default="")
 parser.add_argument('--certfile', '-c', required=True)
-parser.add_argument('file')
+#parser.add_argument('file')
 args = parser.parse_args()
 
-file = args.file
+#file = args.file
 server = args.server
 nick = args.name
 passwd = args.passwd
