@@ -2,7 +2,7 @@
 
 # go to mumble and go trough the cert setup, then convert it
 # openssl pkcs12 -in cert.p12 -out cert.crt -nodes
-# ./mumble_bot.py --server 212.5.153.130 --name sexbot --certfile cert/cert.crt EPIC\ FLUTE\ DROP\ ft.\ KFC\ AND\ WATERMELONS\ \[dbe1e6624979e0053c6b4c273c3fdb374f84c7d6\].mp4
+# ./mumble_bot.py --server 192.168.0.101 --name sexbot --certfile mumble-cert/cert.crt
 
 # put the music in the folder called `music`
 
@@ -12,6 +12,8 @@ import audioop, time
 import argparse
 from pymumble_py3.callbacks import PYMUMBLE_CLBK_TEXTMESSAGERECEIVED
 import os
+import yt_dlp #
+import re
 
 HERE = os.path.realpath(os.path.dirname(__file__))
 FOLDER_MUSIC = os.path.join(HERE, 'music')
@@ -23,10 +25,8 @@ parser.add_argument('--port', '-P', type=int, default=64738)
 parser.add_argument('--name', '-n', required=True)
 parser.add_argument('--passwd', '-p', default="")
 parser.add_argument('--certfile', '-c', required=True)
-#parser.add_argument('file')
 args = parser.parse_args()
 
-#file = args.file
 server = args.server
 nick = args.name
 passwd = args.passwd
@@ -57,22 +57,86 @@ def message_received_handler(message):
     print(f'msg:{msg}')
 
     match msg:
+
         case 'ls':
             ans = 'songs found:'
             ans += compile_list_of_songs()
             send_answer(message, ans)
+
         # case 'skip':
         #     skip_requested = True
+
         case _:
+
             idx = msg.find(' ')
             if idx == -1:
                 return
             cmd = msg[:idx]
             arg = msg[idx+1:]
+
             match cmd:
+
+                # case 'download':
+                #     video_link = arg
+                    
+                #     pattern = re.compile('<.*?>')
+                #     video_link = re.sub(pattern, '', video_link)
+                #     print(f'{video_link=}')
+
+                #     ytdl_format_options = {
+                #         'format': 'bestaudio/best',
+                #         'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+                #         'restrictfilenames': True,
+                #         'noplaylist': True,
+                #         'nocheckcertificate': True,
+                #         'ignoreerrors': False,
+                #         'logtostderr': False,
+                #         'quiet': True,
+                #         'no_warnings': True,
+                #         'default_search': 'auto',
+                #         'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
+                #     }
+                #     ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+                #     video_data = ytdl.extract_info(video_link, download=False)
+
+                #     # ffmpeg_options = {
+                #     #     'options': '-vn'
+                #     # }
+                #     # url = video_data['url']
+                #     # print(f'now playing music from URL: {url}')
+                #     # #source = discord.FFmpegPCMAudio(url, **ffmpeg_options)
+
+                #     url = video_data['url']
+
+                #     play_queue.append(url)
+
+                case 'download':
+                    video_link = arg
+                    pattern = re.compile('<.*?>')
+                    video_link = re.sub(pattern, '', video_link)
+                    
+                    ytdl_format_options = {
+                        'format': 'bestaudio/best',
+                        #'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+                        'outtmpl': 'music/%(title)s.%(ext)s',
+                        'restrictfilenames': True,
+                        'noplaylist': True,
+                        'nocheckcertificate': True,
+                        'ignoreerrors': False,
+                        'logtostderr': False,
+                        'quiet': True,
+                        'no_warnings': True,
+                        'default_search': 'auto',
+                        'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
+                    }
+
+                    ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+                    ytdl.download(video_link)
+
                 case 'play':
-                    send_answer(message, f'trying to queue: {arg}')
+                    send_answer(message, f'trying to queue `{arg}`')
                     play_queue.append(arg)
+
                 case _:
                     #send_answer(message, f'unknown command: {cmd}')
                     pass
@@ -92,6 +156,8 @@ while True:
 
     print("start Processing")
     command = ["ffmpeg", "-i", file, "-acodec", "pcm_s16le", "-f", "s16le", "-ab", "192k", "-ac", "1", "-ar", "48000",  "-"]
+    #command = ['ffplay', file]
+    #command = ['ffmpeg', '-i', file, '-f', 's16le']
     sound = sp.Popen(command, stdout=sp.PIPE, stderr=sp.DEVNULL, bufsize=1024)
 
     print("playing")
