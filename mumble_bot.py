@@ -14,6 +14,7 @@ from pymumble_py3.callbacks import PYMUMBLE_CLBK_TEXTMESSAGERECEIVED
 import os
 import yt_dlp #
 import re
+import random
 
 HERE = os.path.realpath(os.path.dirname(__file__))
 FOLDER_MUSIC = os.path.join(HERE, 'music')
@@ -34,7 +35,11 @@ port = args.port
 certfile = args.certfile
 
 play_queue = []
-# skip_requested = False
+skip_requested = False
+volume = 1.0
+bufsize = 1024
+bufsize_mult = 1
+reverse = False
 
 def send_answer(source_message, answer):
     for id_ in source_message.channel_id:
@@ -51,10 +56,12 @@ def compile_list_of_songs(folder=''):
     return ans
 
 def message_received_handler(message):
-    # global skip_requested
+    global skip_requested
+    global reverse
+    global bufsize_mult
 
     msg = message.message
-    print(f'msg:{msg}')
+    print(f'{msg=}')
 
     match msg:
 
@@ -63,8 +70,12 @@ def message_received_handler(message):
             ans += compile_list_of_songs()
             send_answer(message, ans)
 
-        # case 'skip':
-        #     skip_requested = True
+        case 'reverse':
+            reverse = not reverse
+
+        case 'skip':
+            send_answer(message, 'skip requested')
+            skip_requested = True
 
         case _:
 
@@ -75,6 +86,11 @@ def message_received_handler(message):
             arg = msg[idx+1:]
 
             match cmd:
+
+                case 'bufsize_mult':
+                    mult = int(arg)
+                    assert mult >= 1
+                    bufsize_mult = mult
 
                 # case 'download':
                 #     video_link = arg
@@ -131,10 +147,12 @@ def message_received_handler(message):
                     }
 
                     ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
+                    send_answer(message, f'starting download of `{video_link}`')
                     ytdl.download(video_link)
+                    send_answer(message, f'finished download of `{video_link}`')
 
                 case 'play':
-                    send_answer(message, f'trying to queue `{arg}`')
+                    send_answer(message, f'queued `{arg}`')
                     play_queue.append(arg)
 
                 case _:
@@ -154,30 +172,42 @@ while True:
     file = play_queue.pop(0)
     file = os.path.join(FOLDER_MUSIC, file)
 
-    print("start Processing")
+    print("processing")
+
     command = ["ffmpeg", "-i", file, "-acodec", "pcm_s16le", "-f", "s16le", "-ab", "192k", "-ac", "1", "-ar", "48000",  "-"]
     #command = ['ffplay', file]
     #command = ['ffmpeg', '-i', file, '-f', 's16le']
-    sound = sp.Popen(command, stdout=sp.PIPE, stderr=sp.DEVNULL, bufsize=1024)
+    sound = sp.Popen(command, stdout=sp.PIPE, stderr=sp.DEVNULL, bufsize=bufsize)
 
     print("playing")
+
     while True:
-        raw_music = sound.stdout.read(1024)
+        raw_music = sound.stdout.read(bufsize * bufsize_mult)
         if not raw_music:
             break
 
-        # print('skipping')
-        # if skip_requested:
-        #     skip_requested = False
-        #     break
+        if skip_requested:
+            break
 
-        #vol = 0.1
-        #mumble.sound_output.add_sound(audioop.mul(raw_music, 2, vol))   #adjusting volume
+        if reverse:
+            raw_music = audioop.reverse(raw_music, 2)
+        
+        # volume += random.uniform(-0.18, 0.18)
+        raw_music = audioop.mul(raw_music, 2, volume)
+
         mumble.sound_output.add_sound(raw_music)
 
-    print("finished")
-    while mumble.sound_output.get_buffer_size() > 0.5:  #
-        time.sleep(0.01)
+        target_buffer = 0.8
+        current_buffer = mumble.sound_output.get_buffer_size()
+        diff = current_buffer - target_buffer
+        if diff > 0:
+            time.sleep(diff)
 
-    print("sleep")
-    time.sleep(2)
+    print('killing pipe')
+
+    sound.terminate()
+    sound.kill()
+
+    print("finished")
+
+    skip_requested = False
