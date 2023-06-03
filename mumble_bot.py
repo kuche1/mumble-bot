@@ -16,8 +16,7 @@ import yt_dlp #
 import re
 import random
 
-HERE = os.path.realpath(os.path.dirname(__file__))
-FOLDER_MUSIC = os.path.join(HERE, 'music')
+FOLDER_MUSIC = '/tmp/music'
 
 parser = argparse.ArgumentParser(description='mumble bot')
 
@@ -42,14 +41,24 @@ bufsize_mult = 1
 reverse = False
 
 def send_answer(source_message, answer):
+    limit = 4500
+    if len(answer) > limit:
+        send_answer(source_message, answer[:limit])
+        send_answer(source_message, answer[limit:])
+        return
+
     for id_ in source_message.channel_id:
         mumble.channels[id_].send_text_message(answer)
 
-def compile_list_of_songs(folder=''):
+def compile_list_of_songs(folder='', pattern=None):
     ans = ''
     for (_,fols,fils) in os.walk(os.path.join(FOLDER_MUSIC, folder)):
         for fil in fils:
-            ans += f'<br/><br/>{os.path.join(folder, fil)}'
+            path = os.path.join(folder, fil)
+            if pattern != None:
+                if re.match(pattern, path) == None:
+                    continue
+            ans += f'<br/><br/>{path}'
         for fol in fols:
             ans += compile_list_of_songs(os.path.join(folder, fol))
         break
@@ -134,26 +143,54 @@ def message_received_handler(message):
                     ytdl_format_options = {
                         'format': 'bestaudio/best',
                         #'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-                        'outtmpl': 'music/%(title)s.%(ext)s',
-                        'restrictfilenames': True,
+                        'outtmpl': f'{FOLDER_MUSIC}/%(title)s.%(ext)s',
+                        #'restrictfilenames': True,
+                        'restrictfilenames': False,
                         'noplaylist': True,
                         'nocheckcertificate': True,
                         'ignoreerrors': False,
                         'logtostderr': False,
                         'quiet': True,
+                        # 'quiet': False,
                         'no_warnings': True,
                         'default_search': 'auto',
                         'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
                     }
 
                     ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
-                    send_answer(message, f'starting download of `{video_link}`')
-                    ytdl.download(video_link)
-                    send_answer(message, f'finished download of `{video_link}`')
+
+                    # breakpoint()
+
+                    try:
+                        resulting_file = ytdl.prepare_filename(ytdl.extract_info(video_link, download=False))
+                        resulting_file = resulting_file[len(FOLDER_MUSIC):]
+                    except:
+                        resulting_file = None
+
+                    # resulting_file = None
+
+                    send_answer(message, f'starting download of `{video_link}` -> `{resulting_file}`')
+                    try:
+                        ytdl.download(video_link)
+                    except:
+                        send_answer(message, f'ERROR `{video_link}`')
+                        raise
+                    else:
+                        send_answer(message, f'finished download of `{video_link}` -> `{resulting_file}`')
+
+                    # breakpoint()
 
                 case 'play':
                     send_answer(message, f'queued `{arg}`')
                     play_queue.append(arg)
+
+                case 're':
+                    pattern = arg
+
+                    ans = 'result:'
+                    ans += compile_list_of_songs(pattern=pattern)
+
+                    send_answer(message, ans)
 
                 case _:
                     #send_answer(message, f'unknown command: {cmd}')
