@@ -1,8 +1,14 @@
 #! /usr/bin/env python3
 
-# go to mumble and go trough the cert setup, then convert it
+# OLD WAY:
+#   go to mumble and go trough the cert setup
+# NEW WAY: https://stackoverflow.com/questions/21141215/creating-a-p12-file
+    # openssl genrsa -out key.pem 2048
+    # openssl req -new -sha256 -key key.pem -out csr.csr
+    # openssl req -x509 -sha256 -days 365 -key key.pem -in csr.csr -out certificate.pem
+    # openssl pkcs12 -export -out client-identity.p12 -inkey key.pem -in certificate.pem
 # openssl pkcs12 -in cert.p12 -out cert.crt -nodes
-# ./mumble_bot.py --server 192.168.0.101 --name sexbot --certfile mumble-cert/cert.crt
+# ./mumble_bot.py --server 192.168.0.101 --name sexbot --certfile certs/cert.crt
 
 # put the music in the folder called `music`
 
@@ -16,7 +22,9 @@ import yt_dlp #
 import re
 import random
 
-FOLDER_MUSIC = '/tmp/music'
+RADIO_NAME = 'radio jungl'
+FOLDER_MUSIC = '/var/tmp/mumble-bot-music'
+MESSAGE_MAXLEN = 4500
 
 parser = argparse.ArgumentParser(description='mumble bot')
 
@@ -40,11 +48,24 @@ bufsize = 1024
 bufsize_mult = 1
 reverse = False
 
+class Queue_item:
+    def __init__(s, original_message, audio_file):
+        s.audio_file = audio_file
+        s.original_message = original_message
+
+        s.sender = mumble.users[original_message.actor]
+    
+    def send_playing_message(s):
+        ans = f'{RADIO_NAME}<br>'
+        ans += f'slu6a6 `{s.audio_file}`<br>'
+        user = s.sender['name']
+        ans += f'specialen pozdrav ot `{user}`'
+        send_answer(s.original_message, ans)
+
 def send_answer(source_message, answer):
-    limit = 4500
-    if len(answer) > limit:
-        send_answer(source_message, answer[:limit])
-        send_answer(source_message, answer[limit:])
+    if len(answer) > MESSAGE_MAXLEN:
+        send_answer(source_message, answer[:MESSAGE_MAXLEN])
+        send_answer(source_message, answer[MESSAGE_MAXLEN:])
         return
 
     for id_ in source_message.channel_id:
@@ -58,7 +79,8 @@ def compile_list_of_songs(folder='', pattern=None):
             if pattern != None:
                 if re.match(pattern, path) == None:
                     continue
-            ans += f'<br/><br/>{path}'
+            # ans += f'<br/><br/>{path}'
+            ans += f'<br/>{path}'
         for fol in fols:
             ans += compile_list_of_songs(os.path.join(folder, fol))
         break
@@ -68,16 +90,25 @@ def message_received_handler(message):
     global skip_requested
     global reverse
     global bufsize_mult
+    global currently_playing
 
     msg = message.message
     print(f'{msg=}')
 
     match msg:
 
+        case 'kakvo slu6am' | 'koi pedal pusna tva':
+            currently_playing.send_playing_message()
+
         case 'ls':
             ans = 'songs found:'
             ans += compile_list_of_songs()
             send_answer(message, ans)
+
+        # case 'show queue':
+        #     ans = ''
+        #     for item in song_queue: # this can fail if the list gets modified but it doesn't matter if we crash
+        #         ...
 
         case 'reverse':
             reverse = not reverse
@@ -144,8 +175,7 @@ def message_received_handler(message):
                         'format': 'bestaudio/best',
                         #'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
                         'outtmpl': f'{FOLDER_MUSIC}/%(title)s.%(ext)s',
-                        #'restrictfilenames': True,
-                        'restrictfilenames': False,
+                        'restrictfilenames': True, # just keep this as it is, otherwise mumble might butcher the file name (example: some whitespace)
                         'noplaylist': True,
                         'nocheckcertificate': True,
                         'ignoreerrors': False,
@@ -159,15 +189,13 @@ def message_received_handler(message):
 
                     ytdl = yt_dlp.YoutubeDL(ytdl_format_options)
 
-                    # breakpoint()
-
                     try:
                         resulting_file = ytdl.prepare_filename(ytdl.extract_info(video_link, download=False))
                         resulting_file = resulting_file[len(FOLDER_MUSIC):]
+                        if resulting_file.startswith('/'):
+                            resulting_file = resulting_file[1:]
                     except:
                         resulting_file = None
-
-                    # resulting_file = None
 
                     send_answer(message, f'starting download of `{video_link}` -> `{resulting_file}`')
                     try:
@@ -178,11 +206,11 @@ def message_received_handler(message):
                     else:
                         send_answer(message, f'finished download of `{video_link}` -> `{resulting_file}`')
 
-                    # breakpoint()
 
                 case 'play':
                     send_answer(message, f'queued `{arg}`')
-                    play_queue.append(arg)
+                    item = Queue_item(message, arg)
+                    play_queue.append(item)
 
                 case 're':
                     pattern = arg
@@ -196,20 +224,27 @@ def message_received_handler(message):
                     #send_answer(message, f'unknown command: {cmd}')
                     pass
 
+currently_playing = None
+
 mumble = pymumble_py3.Mumble(server, nick, password=passwd, port=port, certfile=certfile)
 mumble.callbacks.set_callback(PYMUMBLE_CLBK_TEXTMESSAGERECEIVED, message_received_handler)
 mumble.start()
-mumble.is_ready()   #wait for Mumble to get ready to avoid errors after startup
+mumble.is_ready() # wait for Mumble to get ready to avoid errors after startup
 
 while True:
     
     while not play_queue:
         time.sleep(1)
         
-    file = play_queue.pop(0)
+    item = play_queue.pop(0)
+    currently_playing = item
+
+    item.send_playing_message()
+
+    file = item.audio_file
     file = os.path.join(FOLDER_MUSIC, file)
 
-    print("processing")
+    print(f"processing `{file}`")
 
     command = ["ffmpeg", "-i", file, "-acodec", "pcm_s16le", "-f", "s16le", "-ab", "192k", "-ac", "1", "-ar", "48000",  "-"]
     #command = ['ffplay', file]
@@ -217,6 +252,8 @@ while True:
     sound = sp.Popen(command, stdout=sp.PIPE, stderr=sp.DEVNULL, bufsize=bufsize)
 
     print("playing")
+
+    skip_requested = False
 
     while True:
         raw_music = sound.stdout.read(bufsize * bufsize_mult)
@@ -246,5 +283,3 @@ while True:
     sound.kill()
 
     print("finished")
-
-    skip_requested = False
