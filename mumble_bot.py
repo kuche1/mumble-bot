@@ -105,10 +105,11 @@ def message_received_handler(message):
             ans += compile_list_of_songs()
             send_answer(message, ans)
 
-        # case 'show queue':
-        #     ans = ''
-        #     for item in song_queue: # this can fail if the list gets modified but it doesn't matter if we crash
-        #         ...
+        case 'show queue':
+            ans = 'songs in queue:<br>'
+            for item in play_queue: # this can fail if the list gets modified but it doesn't matter if we crash
+                ans += f'{item.audio_file}<br>'
+            send_answer(message, ans)
 
         case 'reverse':
             reverse = not reverse
