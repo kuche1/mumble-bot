@@ -7,7 +7,7 @@
     # openssl req -new -sha256 -key key.pem -out csr.csr
     # openssl req -x509 -sha256 -days 365 -key key.pem -in csr.csr -out certificate.pem
     # openssl pkcs12 -export -out client-identity.p12 -inkey key.pem -in certificate.pem
-# openssl pkcs12 -in cert.p12 -out cert.crt -nodes
+# openssl pkcs12 -in client-identity.p12 -out cert.crt -nodes
 # ./mumble_bot.py --server 192.168.0.101 --name sexbot --certfile certs/cert.crt
 
 # put the music in the folder called `music`
