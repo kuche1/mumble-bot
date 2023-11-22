@@ -18,7 +18,7 @@ import audioop, time
 import argparse
 from pymumble_py3.callbacks import PYMUMBLE_CLBK_TEXTMESSAGERECEIVED
 import os
-import yt_dlp #
+import yt_dlp # installing with apt might is not a great idea since YT changes all the times and older yt-dlp versions often do not work; pacman is fine
 import re
 import random
 
