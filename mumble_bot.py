@@ -22,8 +22,10 @@ import yt_dlp # installing with apt might is not a great idea since YT changes a
 import re
 import random
 
+HERE = os.path.dirname(__file__)
+
 RADIO_NAME = 'radio jungl'
-FOLDER_MUSIC = '/var/tmp/mumble-bot-music'
+FOLDER_MUSIC = f'{HERE}/music'
 MESSAGE_MAXLEN = 4500
 
 parser = argparse.ArgumentParser(description='mumble bot')
