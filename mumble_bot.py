@@ -234,6 +234,9 @@ mumble.callbacks.set_callback(PYMUMBLE_CLBK_TEXTMESSAGERECEIVED, message_receive
 mumble.start()
 mumble.is_ready() # wait for Mumble to get ready to avoid errors after startup
 
+assert mumble.connected == 2, 'could not connect to server'
+# it seems that when we're connected successfully this value is 2, and when not it's 3
+
 while True:
     
     while not play_queue:
